@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<div class="welcome-header">
+    <h1>¡Bienvenido/a, {{ current_user.nombres if current_user.nombres else 'Usuario' }}!</h1>
+    <p style="color: var(--text-secondary);">Panel de control del ciudadano</p>
+</div>
+
+<div class="cards-grid">
+    <!-- Card Renovación -->
+    <div class="dash-card glass-panel">
+        <div class="dash-card-icon">🪪</div>
+        <h3>Renovación de Cédula</h3>
+        <p>Inicie el proceso para actualizar su fotografía y renovar su documento de identidad vencido.</p>
+        <a href="{{ url_for('main.renovacion') }}" class="btn btn-primary">Iniciar Trámite</a>
+    </div>
+
+    <!-- Card Pasaporte -->
+    <div class="dash-card glass-panel" style="opacity: 0.7;">
+        <div class="dash-card-icon">🛂</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Pasaporte</h3>
+            <span class="badge">No disponible</span>
+        </div>
+        <p>Servicio de solicitud y renovación de pasaportes temporalmente en mantenimiento.</p>
+        <button class="btn btn-secondary" disabled style="cursor: not-allowed; opacity: 0.5;">Iniciar Trámite</button>
+    </div>
+
+    <!-- Card Info -->
+    <div class="dash-card glass-panel">
+        <div class="dash-card-icon">👤</div>
+        <h3>Mi Información</h3>
+        <ul class="info-list">
+            <li>
+                <span>Cédula:</span>
+                <span style="font-weight: 600;">{{ current_user.cedula if current_user.cedula else '---' }}</span>
+            </li>
+            <li>
+                <span>F. Nacimiento:</span>
+                <span style="font-weight: 600;">{{ current_user.fecha_nacimiento if current_user.fecha_nacimiento else '---' }}</span>
+            </li>
+            <li>
+                <span>Estado Civil:</span>
+                <span style="font-weight: 600;">{{ current_user.estado_civil if current_user.estado_civil else '---' }}</span>
+            </li>
+        </ul>
+        <div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-secondary); text-align: center;">
+            Datos sincronizados con Registro Civil
+        </div>
+    </div>
+</div>
+
+<div class="bottom-banner">
+    SAIME - Al servicio del pueblo venezolano
+</div>
+{% endblock %}

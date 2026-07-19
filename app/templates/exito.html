@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<div class="success-container glass-panel">
+    <div class="success-icon">✓</div>
+    <h1 style="margin-bottom: 15px;">¡Renovación Exitosa!</h1>
+    <p style="color: var(--text-secondary); font-size: 1.1rem; line-height: 1.6;">
+        Su cédula de identidad ha sido renovada exitosamente tras validar su identidad.
+    </p>
+
+    <div class="similarity-badge">
+        Validación Biométrica AI: {{ similitud | default('98.5') }}% de coincidencia
+    </div>
+
+    <!-- Preview de cédula simplificada -->
+    <div style="margin: 30px auto; max-width: 400px; background: #fff; color: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: left; position: relative;">
+        <!-- Header bandera -->
+        <div style="height: 12px; background: linear-gradient(to right, #FCD116 33%, #003DA5 33% 66%, #CE1126 66%);"></div>
+        <div style="padding: 10px; background: #f0f0f0; text-align: center; border-bottom: 1px solid #ddd; font-size: 0.7rem; font-weight: bold;">
+            REPÚBLICA BOLIVARIANA DE VENEZUELA<br>MINISTERIO DEL PODER POPULAR PARA RELACIONES INTERIORES, JUSTICIA Y PAZ<br>SAIME
+        </div>
+        
+        <div style="padding: 20px; display: flex; gap: 20px;">
+            <div style="flex: 0 0 100px;">
+                <img src="{{ url_for('static', filename=nueva_foto or current_user.foto_ruta) if (nueva_foto or current_user.foto_ruta) else url_for('static', filename='img/default_avatar.png') }}" alt="Foto" style="width: 100%; height: 130px; object-fit: cover; border: 1px solid #ccc;">
+            </div>
+            <div style="flex: 1; font-family: Arial, sans-serif;">
+                <div style="font-size: 1.2rem; font-weight: 900; margin-bottom: 10px;">{{ current_user.cedula if current_user else 'V-12345678' }}</div>
+                
+                <div style="font-size: 0.7rem; color: #555; text-transform: uppercase;">Apellidos</div>
+                <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 5px;">{{ current_user.apellidos if current_user else 'APELLIDOS' }}</div>
+                
+                <div style="font-size: 0.7rem; color: #555; text-transform: uppercase;">Nombres</div>
+                <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 10px;">{{ current_user.nombres if current_user else 'NOMBRES' }}</div>
+                
+                <div style="display: flex; gap: 15px;">
+                    <div>
+                        <div style="font-size: 0.6rem; color: #555;">FECHA NAC.</div>
+                        <div style="font-size: 0.8rem; font-weight: bold;">{{ current_user.fecha_nacimiento if current_user else '01-01-1990' }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.6rem; color: #555;">ESTADO CIVIL</div>
+                        <div style="font-size: 0.8rem; font-weight: bold;">{{ current_user.estado_civil[0] if current_user and current_user.estado_civil else 'S' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+        <a href="{{ url_for('main.descargar_pdf') }}" class="btn btn-success" style="width: 100%; max-width: 300px;">
+            📄 Descargar Cédula (PDF)
+        </a>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary" style="width: 100%; max-width: 300px;">
+            Volver al Inicio
+        </a>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.85rem; color: var(--warning-yellow);">
+        <strong>Nota Importante:</strong> Guarde este documento. Su nueva cédula física será enviada a la dirección registrada.
+    </p>
+</div>
+{% endblock %}

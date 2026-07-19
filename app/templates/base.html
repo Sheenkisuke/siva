@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SIVA - Sistema Inteligente de Verificación de Autenticidad{% endblock %}</title>
+    <meta name="description" content="Sistema Inteligente de Verificación de Autenticidad para renovación de cédula venezolana">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <!-- Flash Messages -->
+    <div class="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <span>{{ message }}</span>
+                        <span class="alert-close">✖</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    {% if current_user and current_user.is_authenticated %}
+        <!-- Mobile Toggle -->
+        <button id="mobile-toggle" class="mobile-toggle">☰ Menú</button>
+
+        <!-- Sidebar overlay for mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar glass-panel" style="border-radius: 0;">
+            <div class="sidebar-header">
+                <div class="logo-text">SIVA</div>
+                <div class="logo-subtitle">Sistema de Verificación</div>
+            </div>
+
+            <div class="user-profile">
+                <img src="{{ url_for('static', filename=current_user.foto_ruta) if current_user.foto_ruta else url_for('static', filename='img/default_avatar.png') }}" alt="Usuario" class="user-avatar" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZiI+PHBhdGggZD0iTTEyIDJDMi4zMDggMi0yLjE4IDEyLjIxNSAzLjc0NiAyMC42NTdjLjQ4OC42OTIgMS4zNSAxLjM0MyAyLjU3MSAxLjM0M2gxMS4zNjZjMS4yMjIgMCAyLjA4My0uNjUgMi41NzEtMS4zNDNDMjYuMTgxIDEyLjIxNSAyMS42OTIgMiAxMiAyem0wIDIwYy0xLjU1NCAwLTIuOTU1LS42ODgtMy45NTMtMS43OTQuOTQ4LTIuMzE1IDMuMDMyLTQuMjA2IDUuOTUzLTQuMjA2czUuMDA1IDEuODkxIDUuOTUz 4uMjA2Qy05LjA0NSAyMS4zMTIgNy41NTQgMjIgMTIgMjJ6bS00LjUtOWMzLjAzMiAwIDUuNS0yLjQ2OCA1LjUtNS41UzE1LjAzMiAyIDExLjUgMiA2IDQuNDY4IDYgNy41IDguNDY4IDEzIDExLjUgMTN6bTAtOWMyLjQ4MSAwIDQuNSAyLjAxOSA0LjUgNC41UzEzLjk4MSAxMiAxMS41IDEyIDcgOS45ODEgNyA3LjVzMi4wMTktNC41IDQuNS00LjV6Ii8+PC9zdmc+'">
+                <div class="user-info">
+                    <div class="user-name">{{ current_user.nombres.split()[0] if current_user.nombres else 'Usuario' }}</div>
+                    <div class="user-cedula">{{ current_user.cedula if current_user.cedula else 'V-00000000' }}</div>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <ul>
+                    <li>
+                        <a href="{{ url_for('main.dashboard') }}" class="nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                            <span class="nav-icon">🏠</span>
+                            <span>Inicio</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('main.renovacion') }}" class="nav-item {% if request.endpoint in ['main.renovacion', 'main.subir_foto'] %}active{% endif %}">
+                            <span class="nav-icon">📋</span>
+                            <span>Renovación de Cédula</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('main.pasaporte') }}" class="nav-item {% if request.endpoint == 'main.pasaporte' %}active{% endif %}">
+                            <span class="nav-icon">🛂</span>
+                            <span>Pasaporte</span>
+                        </a>
+                    </li>
+                    <li style="margin-top: auto;">
+                        <a href="{{ url_for('main.logout') }}" class="nav-item">
+                            <span class="nav-icon">🚪</span>
+                            <span>Cerrar Sesión</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-wrapper">
+            <div class="main-content">
+                {% block contenido %}{% endblock %}
+            </div>
+        </main>
+    {% else %}
+        <!-- Full Page Content (No Sidebar) -->
+        {% block login_content %}{% endblock %}
+    {% endif %}
+
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-message" style="font-weight: 600; font-size: 1.2rem;">Procesando...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

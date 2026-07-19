@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block login_content %}
+<div class="login-page">
+    <div class="login-card glass-panel">
+        <div class="flag-stripe"></div>
+        
+        <div class="login-header">
+            <div class="logo-text" style="font-size: 3rem;">SIVA</div>
+            <div class="logo-subtitle">Sistema Inteligente de Verificación de Autenticidad</div>
+        </div>
+
+        <form action="{{ url_for('main.login') }}" method="POST">
+            <div class="form-group">
+                <label for="cedula" class="form-label">Cédula de Identidad</label>
+                <input type="text" id="cedula" name="cedula" class="form-control" placeholder="V-12345678" required autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Contraseña</label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+                    <button type="button" class="password-toggle">👁️</button>
+                </div>
+                <a href="#" id="forgot-password-link" class="forgot-password">¿Olvidé mi contraseña?</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Iniciar Sesión</button>
+        </form>
+
+        <div class="login-footer">
+            SAIME - Servicio Administrativo de Identificación, Migración y Extranjería
+        </div>
+    </div>
+</div>
+
+<!-- Modal Olvidé mi contraseña -->
+<div id="forgot-password-modal" class="modal-overlay">
+    <div class="modal-content glass-panel">
+        <h3 style="margin-bottom: 20px; color: var(--warning-yellow);">Recuperación de Contraseña</h3>
+        <p style="margin-bottom: 30px; line-height: 1.5;">
+            Para recuperar su contraseña, diríjase a la oficina del SAIME más cercana con su documento de identidad.
+        </p>
+        <button class="btn btn-secondary">Entendido</button>
+    </div>
+</div>
+{% endblock %}

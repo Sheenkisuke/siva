@@ -1,0 +1,25 @@
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Base de datos SQLite local
+data/database.db
+instance/
+
+# Archivos de subida temporales de prueba
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Variables de entorno secretas
+.env
+
+# Archivos temporales de ReportLab o PDFs generados fuera de static/uploads
+*.pdf

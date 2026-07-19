@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<div class="page-header">
+    <h1>Subir Nueva Fotografía</h1>
+    <p style="color: var(--text-secondary); margin-top: 10px;">El sistema evaluará la calidad de su fotografía y realizará reconocimiento facial.</p>
+</div>
+
+<div class="glass-panel" style="padding: 30px;">
+    
+    <div class="upload-container">
+        <!-- Requisitos -->
+        <div class="checklist">
+            <h3>Requisitos de la Fotografía</h3>
+            <ul>
+                <li><span style="color: var(--success-green);">✅</span> Foto centrada, desde hombros hasta cabello</li>
+                <li><span style="color: var(--success-green);">✅</span> Fondo blanco</li>
+                <li><span style="color: var(--success-green);">✅</span> Sin gafas oscuras</li>
+                <li><span style="color: var(--success-green);">✅</span> Sin gorras o capuchas</li>
+                <li><span style="color: var(--success-green);">✅</span> Ojos abiertos</li>
+                <li><span style="color: var(--success-green);">✅</span> Dimensiones: 336px x 448px</li>
+                <li><span style="color: var(--success-green);">✅</span> Formato: JPG o PNG</li>
+                <li><span style="color: var(--success-green);">✅</span> Tamaño máximo: 5MB</li>
+            </ul>
+            
+            <div style="margin-top: 30px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid var(--info-blue);">
+                <span style="font-weight: 600;">Intentos Restantes:</span> 
+                <span style="float: right;">Intento {{ intentos | default(1) }} de 3</span>
+            </div>
+        </div>
+
+        <!-- Zona de carga -->
+        <div class="upload-zone-wrapper">
+            <form id="upload-form" action="{{ url_for('main.verificar_foto') }}" method="POST" enctype="multipart/form-data">
+                <div id="drop-zone" class="drop-zone">
+                    <div id="drop-content">
+                        <div class="drop-icon">📸</div>
+                        <h3 style="margin-bottom: 10px;">Arrastre su foto aquí</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;">o haga clic para seleccionar un archivo</p>
+                        <span class="btn btn-secondary">Examinar archivos</span>
+                    </div>
+                    <img id="preview-img" class="preview-img" src="" alt="Vista previa">
+                    <input type="file" id="foto-upload" name="foto" class="file-input" accept="image/jpeg, image/png">
+                </div>
+                
+                <div class="actions" style="margin-top: 25px;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Verificar y Continuar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
