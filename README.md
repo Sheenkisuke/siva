@@ -8,13 +8,14 @@ SIVA es una plataforma web desarrollada en Python (Flask) diseñada para automat
 
 *   **Autenticación Ciudadana Segura:** Control de sesiones mediante `Flask-Login` y almacenamiento seguro de contraseñas hasheadas en base de datos.
 *   **Validación de Requisitos de Fotografía:** Análisis automático de imágenes usando OpenCV y PIL para garantizar:
-    *   Dimensiones reglamentarias de cédula (336x448 px).
+    *   Relación de aspecto 3:4 de la cédula: la foto se **redimensiona automáticamente** a 336x448 px, por lo que no se exige un tamaño exacto en píxeles (el requisito real es la proporción/relación de aspecto, no la resolución).
     *   Ausencia de gafas oscuras o gorras/sombreros.
-    *   Fondo blanco/claro (mínimo 70% de píxeles claros).
+    *   Fondo blanco/claro (mínimo de píxeles claros **configurable**; 70% por defecto vía `FONDO_THRESHOLD`, ver `.env.example`).
     *   Detección facial clásica (en entornos compatibles).
 *   **Comparación Facial Adaptativa (Biometría):**
-    *   **Primario:** Utiliza `DeepFace` (modelo VGG-Face) y `face_recognition` para comparar coincidencias de identidad con redes neuronales.
-    *   **Fallback Inteligente (HSV Histograms):** En entornos ligeros (como Windows con Python 3.14), realiza un análisis de correlación de histogramas de color en canal HSV, asegurando coincidencia del 100% con la misma foto, permitiendo renovar contra avatares y bloqueando fotos de mascotas/perros.
+    *   **Reconocimiento facial real (opcional):** Con `face_recognition` (dlib) instalado mediante `make biometria`, compara identidades con redes neuronales. La distancia facial se **calibra** para que una coincidencia real supere el umbral y una persona distinta quede por debajo. El umbral y la tolerancia son **configurables** (`FACIAL_THRESHOLD` / `FACIAL_TOLERANCE`, ver `.env.example`).
+    *   **Respaldo por histograma (por defecto):** Si no se instala la biometría, realiza una correlación de histogramas de color HSV; asegura ~100% con la misma imagen, permite renovar contra los avatares de demostración y **rechaza** archivos cuyo nombre indique mascota/animal (p. ej. `perro`, `dog`).
+    *   **Nota:** los usuarios de prueba usan avatares de silueta (no rostros reales), por lo que el reconocimiento facial real se demuestra mejor sustituyendo `static/fotos/V-XXXXXXXX.png` por una foto de rostro real. Ver `documentacion/registro_de_cambios.md`.
 *   **Maquetación Digital en PDF:** Genera un archivo PDF imprimible tamaño carta que maqueta de forma simétrica el anverso y reverso de la cédula venezolana con foto, firma digitalizada, huella dactilar, fechas dinámicas y código QR.
 *   **Verificación QR Integrada:** Dibuja un código QR en el reverso que codifica los datos estructurados en formato JSON para una rápida lectura por entes de seguridad.
 
@@ -89,6 +90,10 @@ Actualiza `pip` e instala las dependencias declaradas en el proyecto:
 ```bash
 pip install -r requirements.txt
 ```
+
+> **Atajo con Makefile (Linux/macOS):** `make install` crea el entorno virtual e instala todo; `make seed` siembra la base de datos; `make run` arranca el servidor; `make test` ejecuta las pruebas. Ver `make help`.
+>
+> **Reconocimiento facial real (opcional):** para activar la biometría real con `face_recognition`/dlib ejecuta `make biometria` (o `pip install --no-deps -r requirements-biometria.txt`). Sin esto, el sistema usa el respaldo por histograma de color.
 
 ### 3. Sembrar la Base de Datos
 Crea las tablas de base de datos SQLite y autogenera las fotos silueta, firmas y huellas de prueba de los 10 ciudadanos venezolanos:

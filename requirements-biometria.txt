@@ -1,0 +1,29 @@
+# ============================================================================
+# Dependencias OPCIONALES para reconocimiento facial REAL (biometría)
+# ============================================================================
+#
+# El proyecto funciona sin estas librerías: usa la comparación por histograma
+# de color como respaldo. Instalando este archivo se activa la comparación
+# facial REAL mediante `face_recognition` (dlib), que distingue correctamente
+# entre la misma persona y personas distintas.
+#
+# INSTALACIÓN (usar SIEMPRE --no-deps, o bien `make biometria`):
+#
+#     pip install --no-deps -r requirements-biometria.txt
+#
+# ¿Por qué --no-deps? Porque `face_recognition` declara depender de `dlib`
+# (que se compilaría desde código fuente, proceso lento y frágil). Aquí usamos
+# el wheel precompilado `dlib-bin`, que ya provee el módulo `dlib`. Con --no-deps
+# evitamos que pip intente compilar `dlib`.
+#
+# Notas:
+#   - setuptools<80: `face_recognition_models` importa `pkg_resources`, que fue
+#     eliminado de setuptools 80+. Se fija una versión que aún lo incluye.
+#   - El paquete de modelos se instala desde GitHub porque la versión de PyPI
+#     (0.1.3) está incompleta (le falta el predictor de 5 puntos).
+# ============================================================================
+
+setuptools<80
+dlib-bin==20.0.1
+face_recognition_models @ git+https://github.com/ageitgey/face_recognition_models
+face_recognition==1.3.0

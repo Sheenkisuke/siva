@@ -1,12 +1,16 @@
 """
 Módulo de validación de fotos para SIVA.
 Utiliza OpenCV para verificar los requisitos obligatorios del SAIME:
-- Dimensiones (336x448 px)
+- Dimensiones: la imagen NO se rechaza por su tamaño en píxeles. Se acepta
+  cualquier resolución y se REDIMENSIONA automáticamente a 336x448 px (relación
+  de aspecto 3:4 reglamentaria de la cédula). Es decir, el requisito real es de
+  proporción/relación de aspecto, no de un tamaño exacto en píxeles.
 - Detección de rostro (exactamente uno)
 - Detección de ojos abiertos (al menos dos)
 - Detección de gafas (no debe tener)
 - Detección de gorra/sombrero (no debe tener)
-- Fondo blanco (mínimo 70% de píxeles claros)
+- Fondo blanco (mínimo de píxeles claros configurable; 70% por defecto vía
+  config.FONDO_THRESHOLD / variable de entorno FONDO_THRESHOLD)
 
 Incluye un bypass inteligente para imágenes de prueba/placeholders y tolerancias
 de detección para evitar falsos negativos en entornos de prueba.
@@ -81,8 +85,13 @@ def _es_imagen_grafica_o_placeholder(imagen_np):
 
 def _verificar_dimensiones_cv2(imagen):
     """
-    Verifica que la imagen tenga exactamente 336x448 px usando OpenCV.
-    Intenta redimensionar si es necesario.
+    Normaliza la imagen a la relación de aspecto 3:4 (336x448 px) usando OpenCV.
+
+    IMPORTANTE: esta función NUNCA rechaza una foto por su tamaño. Si la imagen ya
+    mide 336x448 se deja igual; en cualquier otro caso se REDIMENSIONA a 336x448.
+    El redimensionado automático es intencional (preferido) para no bloquear al
+    usuario por diferencias de tamaño: lo que importa es que la cédula termine con
+    la proporción/relación de aspecto 3:4 correcta.
     """
     alto, ancho = imagen.shape[:2]
     if ancho == 336 and alto == 448:
@@ -312,12 +321,17 @@ def _validacion_basica(ruta_archivo):
         }
 
 
-def validar_foto(ruta_archivo):
+def validar_foto(ruta_archivo, umbral_fondo=70.0):
     """
     Valida la foto utilizando visión artificial (OpenCV).
     Si CascadeClassifier no está disponible, utiliza validación básica.
     Retorna un diccionario compatible con las rutas del backend.
-    
+
+    Args:
+        umbral_fondo: porcentaje mínimo (0-100) de píxeles claros que debe tener
+            el fondo para aceptarse. Configurable desde config.FONDO_THRESHOLD.
+            Con 0 se desactiva de hecho la exigencia de fondo claro.
+
     Returns:
         dict: {'valida': bool, 'errores': list, 'detalles': dict}
     """
@@ -412,7 +426,7 @@ def validar_foto(ruta_archivo):
         # 6. Validación de fondo blanco (umbral tolerante del 70% de píxeles > 160)
         porcentaje_claros = _verificar_fondo_blanco(imagen_gris, rostro_principal)
         detalles['porcentaje_fondo_claro'] = porcentaje_claros
-        if porcentaje_claros < 70.0:
+        if porcentaje_claros < umbral_fondo:
             errores.append(f"El fondo no es lo suficientemente claro "
                           f"(obtenido {porcentaje_claros:.1f}% claro). "
                           f"Use un fondo blanco y buena iluminación.")
