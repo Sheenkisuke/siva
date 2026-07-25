@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import cm
-from app.utils.qr_generator import generar_qr
+from app.utils.qr_generator import generar_qr, sumar_anios
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ def generar_cedula_pdf(usuario, ruta_foto_nueva, ruta_salida):
         
         # Fechas de expedición y vencimiento
         hoy = datetime.now()
-        vencimiento = hoy.replace(year=hoy.year + 10)
+        vencimiento = sumar_anios(hoy, 10)
         
         c.setFont("Helvetica", 4)
         c.drawString(x_anverso + 3 * cm, y_tarjeta + 0.3 * cm, f"Fecha Expedición: {hoy.strftime('%d/%m/%Y')}")

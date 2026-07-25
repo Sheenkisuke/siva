@@ -111,6 +111,9 @@ def verificar_foto():
         return redirect(url_for('main.subir_foto'))
         
     try:
+        # Conservar el nombre ORIGINAL antes de renombrar (necesario para el
+        # filtro de mascotas/animales del comparador; ver comparar_rostros).
+        nombre_original = archivo.filename
         # Guardar archivo con nombre único
         nombre_archivo = secure_filename(archivo.filename)
         ext = nombre_archivo.rsplit('.', 1)[1].lower()
@@ -124,29 +127,11 @@ def verificar_foto():
         session['nueva_foto'] = f"uploads/{nombre_unico}"
         logging.info(f"Foto subida guardada en: {ruta_guardado}")
         
-        try:
-            from app.utils import photo_validator, face_comparator, pdf_generator
-        except ImportError:
-            logging.warning("Módulos de utilidad no encontrados. Utilizando validación simulada.")
-            class MockValidator:
-                @staticmethod
-                def validar_foto(ruta): 
-                    return {'valida': True, 'errores': []}
-            class MockComparator:
-                @staticmethod
-                def comparar_rostros(foto1, foto2): 
-                    return {'porcentaje_similitud': 90.5, 'coincide': True}
-            class MockPDFGen:
-                @staticmethod
-                def generar_pdf(usuario, foto): 
-                    return os.path.join(upload_folder, f"cedula_{usuario.cedula}.pdf")
-                
-            photo_validator = MockValidator()
-            face_comparator = MockComparator()
-            pdf_generator = MockPDFGen()
-        
-        # Validar foto
-        resultado_validacion = photo_validator.validar_foto(ruta_guardado)
+        from app.utils import photo_validator, face_comparator, pdf_generator
+
+        # Validar foto (el umbral de fondo claro es configurable: config.FONDO_THRESHOLD)
+        resultado_validacion = photo_validator.validar_foto(
+            ruta_guardado, umbral_fondo=current_app.config['FONDO_THRESHOLD'])
         if not resultado_validacion.get('valida', False):
             session['intentos_foto'] += 1
             if session['intentos_foto'] >= current_app.config['MAX_INTENTOS_FOTO']:
@@ -156,14 +141,18 @@ def verificar_foto():
             flash(f'Error en la foto: {msg_validar}. Intento {session["intentos_foto"]} de {current_app.config["MAX_INTENTOS_FOTO"]}', 'warning')
             return redirect(url_for('main.subir_foto'))
             
-        # Comparar rostros
+        # Comparar rostros (umbral y tolerancia configurables: FACIAL_THRESHOLD / FACIAL_TOLERANCE)
         foto_anterior = os.path.join(current_app.static_folder, current_user.foto_ruta) if current_user.foto_ruta else None
-        
-        resultado_comparacion = face_comparator.comparar_rostros(ruta_guardado, foto_anterior)
+
+        umbral = current_app.config['FACIAL_THRESHOLD']
+        resultado_comparacion = face_comparator.comparar_rostros(
+            ruta_guardado, foto_anterior,
+            umbral=umbral,
+            tolerancia=current_app.config['FACIAL_TOLERANCE'],
+            nombre_original=nombre_original)
         similitud_porcentaje = resultado_comparacion.get('porcentaje_similitud', 0)
         similitud_decimal = similitud_porcentaje / 100.0
-        
-        umbral = current_app.config['FACIAL_THRESHOLD']
+
         if similitud_decimal < umbral:
             session['intentos_foto'] += 1
             logging.warning(f"Similitud facial baja ({similitud_decimal}) para usuario {current_user.cedula}")
@@ -191,7 +180,8 @@ def exito():
         flash('No se encontró ninguna cédula lista para descargar.', 'warning')
         return redirect(url_for('main.dashboard'))
     
-    similitud = session.get('similitud', '90.0')
+    # Se mantiene numérico para ser consistente con el valor guardado en verificar_foto
+    similitud = session.get('similitud', 0.0)
     
     # Obtener la ruta de la nueva foto desde la sesión
     # Si no existe, usar la foto anterior del usuario
