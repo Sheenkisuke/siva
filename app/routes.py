@@ -15,6 +15,32 @@ from app.forms import validar_login, validar_archivo_foto, formatear_cedula
 # Configurar el blueprint principal
 main = Blueprint('main', __name__)
 
+# Dedos que el ciudadano puede consultar en el selector de huellas de
+# /renovacion (ver renovacion.html).
+#
+# `x` e `y` son porcentajes del ancho y del alto de static/img/manos.png y
+# marcan el CENTRO de la huella de cada dedo. Se extrajeron de la imagen de
+# referencia de puntos y se aplican con translate(-50%, -50%), de modo que el
+# centro del punto cae exactamente sobre la yema del dedo a cualquier tamaño de
+# render (son porcentajes, no píxeles: sobreviven al redimensionado del panel).
+#
+# `numero` es únicamente el índice del archivo
+# static/huellas/<cedula>_<numero>.png que genera init_db.py; el nombre del dedo
+# es lo que da el significado. Los dedos 5 y 6 son los pulgares, que en la
+# imagen se tocan en el centro.
+DEDOS = [
+    {'numero': 1,  'nombre': 'Meñique izquierdo', 'x': 6.196,  'y': 45.644},
+    {'numero': 2,  'nombre': 'Anular izquierdo',  'x': 15.988, 'y': 28.876},
+    {'numero': 3,  'nombre': 'Medio izquierdo',   'x': 26.040, 'y': 22.610},
+    {'numero': 4,  'nombre': 'Índice izquierdo',  'x': 37.009, 'y': 29.138},
+    {'numero': 5,  'nombre': 'Pulgar izquierdo',  'x': 43.478, 'y': 60.720},
+    {'numero': 6,  'nombre': 'Pulgar derecho',    'x': 56.421, 'y': 60.984},
+    {'numero': 7,  'nombre': 'Índice derecho',    'x': 62.707, 'y': 27.726},
+    {'numero': 8,  'nombre': 'Medio derecho',     'x': 74.193, 'y': 22.470},
+    {'numero': 9,  'nombre': 'Anular derecho',    'x': 84.267, 'y': 28.874},
+    {'numero': 10, 'nombre': 'Meñique derecho',   'x': 94.422, 'y': 44.507},
+]
+
 @main.route('/')
 def inicio():
     """Redirige a la página de login o dashboard según sesión."""
@@ -75,7 +101,7 @@ def dashboard():
 def renovacion():
     """Muestra los datos personales del usuario y advertencias del SAIME."""
     session['intentos_foto'] = 0
-    return render_template('renovacion.html', usuario=current_user)
+    return render_template('renovacion.html', usuario=current_user, dedos=DEDOS)
 
 @main.route('/subir-foto')
 @login_required
