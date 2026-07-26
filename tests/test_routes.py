@@ -16,8 +16,10 @@ from datetime import date
 import numpy as np
 from PIL import Image, ImageDraw
 
+import init_db
 from app import create_app, db
 from app.models import Usuario
+from app.routes import DEDOS
 from config import Config
 
 
@@ -140,6 +142,112 @@ class TestFlujoRenovacion(unittest.TestCase):
         self.assertIn('/subir-foto', destinos[0])
         self.assertIn('/subir-foto', destinos[1])
         self.assertIn('/dashboard', destinos[2])  # bloqueado al 3er intento
+
+
+class TestSelectorHuellas(unittest.TestCase):
+    """
+    Selector de huellas de /renovacion: las dos manos con los 10 dedos
+    seleccionables, cada uno apuntando a la huella de ese dedo.
+    """
+
+    def setUp(self):
+        self.app = create_app(TestConfig)
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        db.create_all()
+
+        u = Usuario(
+            cedula='V-12345678', nombres='Carlos', apellidos='Rodríguez',
+            fecha_nacimiento=date(1990, 3, 15), sexo='M', estado_civil='Soltero',
+            foto_ruta='fotos/V-12345678.png', firma_ruta='firmas/V-12345678.png',
+            huella_ruta='huellas/V-12345678.png',
+        )
+        u.establecer_contrasena('carlos123')
+        db.session.add(u)
+        db.session.commit()
+
+        self.client = self.app.test_client()
+        self.client.post('/login', data={'cedula': 'V-12345678', 'password': 'carlos123'})
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.ctx.pop()
+
+    def _html(self):
+        respuesta = self.client.get('/renovacion')
+        self.assertEqual(respuesta.status_code, 200)
+        return respuesta.get_data(as_text=True)
+
+    def test_se_dibujan_los_diez_puntos(self):
+        self.assertEqual(self._html().count('class="huella-punto"'), 10)
+
+    def test_cada_punto_apunta_a_la_huella_de_su_dedo(self):
+        html = self._html()
+        for dedo in DEDOS:
+            self.assertIn(f'huellas/V-12345678_{dedo["numero"]}.png', html)
+            self.assertIn(f'data-nombre="{dedo["nombre"]}"', html)
+
+    def test_los_puntos_se_ubican_en_porcentaje(self):
+        """
+        Las coordenadas van en % (no en px) para que el centro del punto siga
+        cayendo sobre la yema cuando el panel se redimensiona.
+        """
+        html = self._html()
+        for dedo in DEDOS:
+            self.assertIn(f'left: {dedo["x"]}%; top: {dedo["y"]}%;', html)
+
+    def test_dedos_declarados_sin_huecos_ni_repetidos(self):
+        self.assertEqual([d['numero'] for d in DEDOS], list(range(1, 11)))
+        self.assertEqual(len({d['nombre'] for d in DEDOS}), 10)
+
+    def test_requiere_sesion(self):
+        """
+        /renovacion no es pública. Se levanta una app aparte a propósito:
+        Flask-Login cachea el usuario en `g`, que vive en el CONTEXTO DE
+        APLICACIÓN que setUp mantiene abierto, así que reutilizar esa app haría
+        pasar por autenticado a un cliente sin sesión (y la prueba mentiría).
+        """
+        otra = create_app(TestConfig)
+        with otra.app_context():
+            respuesta = otra.test_client().get('/renovacion')
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn('/login', respuesta.headers['Location'])
+
+
+class TestGeneracionDeHuellas(unittest.TestCase):
+    """init_db genera la huella principal (la que estampa el PDF) y una por dedo."""
+
+    def test_genera_la_principal_mas_una_por_dedo(self):
+        with tempfile.TemporaryDirectory() as destino:
+            init_db.generar_huellas('V-99999999', ruta_base=destino)
+            archivos = os.listdir(destino)
+            self.assertEqual(len(archivos), init_db.TOTAL_DEDOS + 1)
+            self.assertIn('V-99999999.png', archivos)
+            for n in range(1, init_db.TOTAL_DEDOS + 1):
+                self.assertIn(f'V-99999999_{n}.png', archivos)
+
+    def test_cada_dedo_tiene_un_patron_distinto(self):
+        with tempfile.TemporaryDirectory() as destino:
+            init_db.generar_huellas('V-99999999', ruta_base=destino)
+            patrones = set()
+            for n in range(1, init_db.TOTAL_DEDOS + 1):
+                with open(os.path.join(destino, f'V-99999999_{n}.png'), 'rb') as f:
+                    patrones.add(f.read())
+            self.assertEqual(len(patrones), init_db.TOTAL_DEDOS)
+
+    def test_regenerar_produce_archivos_identicos(self):
+        """
+        Las huellas se versionan en el repositorio: la semilla debe ser estable
+        para que un `make seed` no genere diferencias en cada corrida.
+        """
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            init_db.generar_huellas('V-99999999', ruta_base=a)
+            init_db.generar_huellas('V-99999999', ruta_base=b)
+            for nombre in os.listdir(a):
+                with open(os.path.join(a, nombre), 'rb') as fa, \
+                     open(os.path.join(b, nombre), 'rb') as fb:
+                    self.assertEqual(fa.read(), fb.read(), nombre)
 
 
 if __name__ == '__main__':

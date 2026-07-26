@@ -51,10 +51,34 @@
                     <img src="{{ url_for('static', filename=current_user.firma_ruta) if current_user.firma_ruta else 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgNTAiPjx0ZXh0IHk9IjMwIiB4PSIxMCIgZmlsbD0iI2NjYyI+U2luIGZpcm1hPC90ZXh0Pjwvc3ZnPg==' }}" alt="Firma" class="doc-img" style="max-height: 80px;">
                 </div>
             </div>
-            <div class="doc-frame">
+            <div class="doc-frame" style="flex-basis: 100%;">
                 <h5>Huella Digital</h5>
-                <div class="doc-img-wrapper" style="margin-top: 10px;">
-                    <img src="{{ url_for('static', filename=current_user.huella_ruta) if current_user.huella_ruta else 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MCA1MCI+PHRleHQgeT0iMzAiIHg9IjUiIGZpbGw9IiNjY2MiPlNpbiBodWVsbGE8L3RleHQ+PC9zdmc+' }}" alt="Huella" class="doc-img" style="max-height: 80px;">
+
+                <div id="selector-huellas" class="selector-huellas" style="margin-top: 10px;">
+
+                    {# Vista 1: las dos manos con los 10 dedos seleccionables #}
+                    <div class="huellas-manos">
+                        <img src="{{ url_for('static', filename='img/manos.png') }}"
+                             alt="Manos con los diez dedos seleccionables" class="doc-img">
+                        {% for dedo in dedos %}
+                        <button type="button" class="huella-punto"
+                                style="left: {{ dedo.x }}%; top: {{ dedo.y }}%;"
+                                data-huella="{{ url_for('static', filename='huellas/' ~ current_user.cedula ~ '_' ~ dedo.numero ~ '.png') }}"
+                                data-nombre="{{ dedo.nombre }}"
+                                title="{{ dedo.nombre }}"
+                                aria-label="Ver la huella del {{ dedo.nombre|lower }}"></button>
+                        {% endfor %}
+                    </div>
+                    <p class="huellas-ayuda">Seleccione un dedo para ver su huella dactilar.</p>
+
+                    {# Vista 2: la huella del dedo seleccionado #}
+                    <div class="huellas-detalle">
+                        <div class="doc-img-wrapper">
+                            <img id="huella-detalle-img" src="" alt="" class="doc-img huellas-detalle-img">
+                        </div>
+                        <p id="huella-detalle-nombre" class="huellas-detalle-nombre"></p>
+                        <button type="button" id="huella-volver" class="btn btn-secondary">&lsaquo; Volver</button>
+                    </div>
                 </div>
             </div>
         </div>

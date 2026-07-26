@@ -18,6 +18,7 @@ SIVA es una plataforma web desarrollada en Python (Flask) diseñada para automat
     *   **Nota:** los usuarios de prueba usan avatares de silueta (no rostros reales), por lo que el reconocimiento facial real se demuestra mejor sustituyendo `static/fotos/V-XXXXXXXX.png` por una foto de rostro real. Ver `documentacion/registro_de_cambios.md`.
 *   **Maquetación Digital en PDF:** Genera un archivo PDF imprimible tamaño carta que maqueta de forma simétrica el anverso y reverso de la cédula venezolana con foto, firma digitalizada, huella dactilar, fechas dinámicas y código QR.
 *   **Verificación QR Integrada:** Dibuja un código QR en el reverso que codifica los datos estructurados en formato JSON para una rápida lectura por entes de seguridad.
+*   **Selector de Huellas por Dedo:** En *Renovación de Cédula*, el apartado "Huella Digital" muestra las dos manos con los **10 dedos seleccionables**. Al pulsar un dedo se muestra su huella ampliada con el nombre del dedo, y con "‹ Volver" (o `Escape`) se regresa para elegir otro. `init_db.py` genera una huella distinta por dedo (`static/huellas/V-XXXXXXXX_1.png` … `_10.png`). Es solo de consulta: la huella que estampa el PDF sigue siendo la principal (`V-XXXXXXXX.png`).
 
 ---
 
@@ -57,7 +58,7 @@ SIVA/
 │   ├── js/main.js            # Lógica dinámica en cliente (Drag & Drop, Loaders)
 │   ├── fotos/                # Fotos / Avatares silueta del seed de la BD
 │   ├── firmas/               # Firmas digitalizadas del seed
-│   ├── huellas/              # Huellas dactilares del seed
+│   ├── huellas/              # Huellas del seed: la principal (PDF) y una por dedo (_1.._10)
 │   └── img/                  # Imágenes base del sistema (Bandera)
 ├── tests/                    # Suites de pruebas unitarias
 ├── run.py                    # Script de arranque del servidor

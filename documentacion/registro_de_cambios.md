@@ -11,6 +11,8 @@ documentación), no la seguridad ni el despliegue.
 > automático (#4), se limpiaron problemas menores, se hicieron **configurables
 > por variables de entorno** los umbrales de similitud facial, tolerancia y fondo
 > claro (con `.env.example`) y se ampliaron las pruebas de 4 a 23 casos.
+> Después se agregó el **selector de huellas por dedo** (sección 10), que llevó
+> la suite a 31 casos.
 
 ---
 
@@ -25,6 +27,7 @@ documentación), no la seguridad ni el despliegue.
 7. [Umbrales configurables por entorno + .env.example](#fondo)
 8. [Pruebas nuevas](#pruebas)
 9. [Cómo instalar y verificar](#verificar)
+10. [Nueva funcionalidad — Selector de huellas por dedo](#huellas)
 
 ---
 
@@ -265,7 +268,7 @@ variables se leen del entorno) y `tests/test_comparator.py::test_calibracion_par
 ---
 
 <a name="pruebas"></a>
-## 8. Pruebas nuevas (de 4 a 20 casos)
+## 8. Pruebas nuevas (de 4 a 23 casos)
 
 Se pasó de pruebas puramente estructurales ("el diccionario tiene tales claves")
 a pruebas que verifican **decisiones reales** de aceptación/rechazo:
@@ -335,3 +338,68 @@ make run     # http://127.0.0.1:5000
 | `tests/test_pdf.py` | Nuevo: PDF y años bisiestos |
 | `tests/test_comparator.py` | Ampliado: calibración y rechazos |
 | `tests/test_validator.py` | Ampliado: umbral de fondo configurable |
+| `init_db.py` | Huella por dedo y semilla estable (sección 10) |
+| `app/templates/renovacion.html` | Selector de huellas de dos vistas (sección 10) |
+| `static/js/main.js` | Intercambio de vistas del selector (sección 10) |
+| `static/css/style.css` | Estilos del selector y de los puntos (sección 10) |
+| `static/img/manos.png` | Nuevo: imagen base de las dos manos (sección 10) |
+
+---
+
+<a name="huellas"></a>
+## 10. Nueva funcionalidad — Selector de huellas por dedo
+
+**Pedido.** En la misma vista donde se mostraba una sola huella, poder ver las
+diez: una imagen de las dos manos con los 10 dedos seleccionables y, al pulsar un
+dedo, su huella, con la opción de volver y elegir otro.
+
+**Qué se hizo.**
+
+- `init_db.py` genera por ciudadano la huella principal (`<cedula>.png`, la que
+  estampa el PDF) **más una por dedo** (`<cedula>_1.png` … `<cedula>_10.png`):
+  110 archivos para los 10 ciudadanos sembrados. El patrón varía el núcleo, la
+  excentricidad, la separación de anillos y la inclinación. Variar solo el número
+  de anillos **no alcanzaba**: las diez huellas salían casi idénticas y el
+  selector perdía sentido.
+- El dibujo usa una semilla derivada de `(cédula, dedo)` en vez del `random`
+  global. Las huellas se versionan en el repositorio: sin semilla estable, cada
+  `make seed` producía 110 archivos distintos y ensuciaba el historial.
+- `app/routes.py` declara `DEDOS`: número de archivo, nombre del dedo y
+  coordenadas `x`/`y` **en porcentaje** del ancho y alto de
+  `static/img/manos.png`.
+- `renovacion.html` reemplaza la miniatura única de "Huella Digital" por dos
+  vistas: las manos con 10 botones, y el detalle del dedo elegido (huella grande,
+  nombre y "‹ Volver").
+- `static/js/main.js` intercambia las vistas con la clase `detalle-activa` (mismo
+  patrón `.active` que usan el sidebar y el modal del login). `Escape` también
+  regresa al selector.
+
+**Detalle importante de posicionamiento.** Los puntos se ubican en
+**porcentajes** y se centran con `translate(-50%, -50%)`, así el centro del punto
+cae sobre la yema a cualquier ancho de render. Su contenedor **no debe llevar
+`padding`**: los porcentajes de un elemento absoluto se resuelven contra la *caja
+de relleno* del contenedor, de modo que reutilizar `.doc-img-wrapper` (que tiene
+`padding: 10px`) corría los puntos hasta ~9 px en los dedos de los extremos. Por
+eso `.huellas-manos` es una clase propia y sin relleno.
+
+**Alcance.** Es solo de consulta: elegir un dedo **no cambia** la huella que
+estampa el PDF, que sigue siendo `Usuario.huella_ruta`. Cambiarlo exigiría
+persistir la selección.
+
+**Los diez dedos.** Los dedos 5 y 6 son los pulgares, que en la imagen se tocan
+en el centro:
+
+| # | Dedo | # | Dedo |
+|---|---|---|---|
+| 1 | Meñique izquierdo | 6 | Pulgar derecho |
+| 2 | Anular izquierdo | 7 | Índice derecho |
+| 3 | Medio izquierdo | 8 | Medio derecho |
+| 4 | Índice izquierdo | 9 | Anular derecho |
+| 5 | Pulgar izquierdo | 10 | Meñique derecho |
+
+**Pruebas añadidas** (en `tests/test_routes.py`, suite de 23 → **31 casos**):
+`TestSelectorHuellas` comprueba que se dibujen los 10 puntos, que cada uno
+apunte a la huella de su dedo, que las coordenadas vayan en porcentaje y que
+`/renovacion` siga exigiendo sesión; `TestGeneracionDeHuellas` comprueba que se
+generen 11 archivos por ciudadano, que los 10 dedos tengan patrones distintos y
+que regenerar produzca archivos idénticos.
