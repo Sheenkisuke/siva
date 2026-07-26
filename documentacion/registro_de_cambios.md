@@ -11,8 +11,10 @@ documentación), no la seguridad ni el despliegue.
 > automático (#4), se limpiaron problemas menores, se hicieron **configurables
 > por variables de entorno** los umbrales de similitud facial, tolerancia y fondo
 > claro (con `.env.example`) y se ampliaron las pruebas de 4 a 23 casos.
-> Después se agregó el **selector de huellas por dedo** (sección 10), que llevó
-> la suite a 31 casos.
+> Después se agregó el **selector de huellas por dedo** (sección 10) y se
+> **rediseñó el anverso del PDF** según la cédula real, estampando la huella del
+> dedo elegido (sección 11), y la **vista previa de /exito pasó a derivarse de la
+> misma maquetación** del PDF (sección 12); la suite quedó en 49 casos.
 
 ---
 
@@ -28,6 +30,8 @@ documentación), no la seguridad ni el despliegue.
 8. [Pruebas nuevas](#pruebas)
 9. [Cómo instalar y verificar](#verificar)
 10. [Nueva funcionalidad — Selector de huellas por dedo](#huellas)
+11. [Rediseño del anverso del PDF según la cédula real](#anverso)
+12. [La vista previa de /exito, calcada del PDF](#previa)
 
 ---
 
@@ -403,3 +407,163 @@ apunte a la huella de su dedo, que las coordenadas vayan en porcentaje y que
 `/renovacion` siga exigiendo sesión; `TestGeneracionDeHuellas` comprueba que se
 generen 11 archivos por ciudadano, que los 10 dedos tengan patrones distintos y
 que regenerar produzca archivos idénticos.
+
+---
+
+<a name="anverso"></a>
+## 11. Rediseño del anverso del PDF según la cédula real
+
+**Pedido.** Que el PDF se pareciera a una cédula real —diseño y posición de las
+imágenes— y que estampara **la huella del dedo elegido en la interfaz**.
+
+### La huella elegida llega al PDF
+
+Antes el selector era solo de consulta. Ahora la elección viaja así:
+
+1. En `/renovacion`, al elegir un dedo el JS marca el punto y añade `?dedo=N` al
+   enlace de "Verificar y Continuar".
+2. `subir_foto()` lee ese parámetro y lo guarda en `session['dedo_huella']`,
+   validándolo contra `DEDOS` (un valor fuera de rango o no numérico se ignora).
+3. `verificar_foto()` arma la ruta `huellas/<cedula>_<N>.png` y se la pasa a
+   `generar_pdf(..., ruta_huella=...)`.
+4. Si no se eligió dedo, o el archivo no existe, se usa `Usuario.huella_ruta`
+   como siempre: el comportamiento anterior queda intacto.
+
+El dedo elegido queda marcado en amarillo sobre las manos y rotulado ("Huella que
+se estampará en la cédula: Índice derecho"), y **sobrevive a la recarga** porque
+se relee de la sesión al volver a `/renovacion`.
+
+### Maquetación medida, no estimada
+
+Las posiciones se **midieron sobre la imagen de referencia** (1080x764 px) con un
+script: recuadros de cada elemento y altura de mayúscula de cada texto. En
+`pdf_generator.py` todo se expresa como **fracciones** del ancho y del alto de la
+tarjeta, contando la vertical desde arriba (como se lee la imagen); `_fy()` las
+traduce al sistema de ReportLab, que mide desde abajo. Cambiar el tamaño de la
+tarjeta es tocar solo `ANCHO_TARJETA`.
+
+Elementos del anverso: banda tricolor redondeada con "REPUBLICA BOLIVARIANA DE
+VENEZUELA" y "CEDULA DE IDENTIDAD" en letras separadas, número de cédula
+agrupado en miles (`V   12.345.678`), número de oficina, rúbrica y cargo del
+director, apellidos y nombres con sus etiquetas, firma y huella del titular a la
+izquierda, las cuatro casillas (F. NACIMIENTO / EDO.CIVIL / F.EXPEDICION /
+F.VENCIMIENTO, esta última solo mes/año como en el original), la nacionalidad y
+la fotografía a la derecha.
+
+### Tres detalles que costaron
+
+- **Tipografía condensada.** La cédula real está impresa con una condensada. Con
+  Helvetica, respetar la altura de mayúscula medida deja los textos demasiado
+  anchos (se montaban unos sobre otros), y bajar el cuerpo para que quepan los
+  deja mucho más bajos que en el original. La salida fue comprimir en horizontal
+  con `Tz` (`_texto_condensado`), que es justo lo que hace una condensada: se
+  conservan a la vez la altura y el ancho de cada dato. Sirve además para los
+  datos reales, que no miden lo mismo que los de la imagen ('RODRÍGUEZ PÉREZ' es
+  más largo que 'ARONICO TORRES').
+- **El estado gráfico del PDF persiste.** `charSpace` (`Tc`) y la escala
+  horizontal (`Tz`) forman parte del estado gráfico y **no se reinician** al
+  cerrar el bloque de texto: la separación del encabezado se filtró a toda la
+  tarjeta y salió con las letras desparramadas. Ambos helpers van envueltos en
+  `saveState`/`restoreState`. (Además `charSpace` está en el objeto de texto, no
+  en el canvas: `canvas.setCharSpace` no existe.)
+- **Imágenes sin deformar.** Foto, firma y huella se dibujan con
+  `preserveAspectRatio=True, anchor='c'`: las proporciones de los archivos no
+  coinciden con las de sus casillas y estirarlas se notaba.
+
+### Lo que no se reprodujo
+
+- **El escudo de armas de marca de agua** del centro: es un elemento de
+  seguridad del documento y no se incluyó. Si se quiere, basta añadir el archivo
+  y dibujarlo con transparencia antes del resto.
+- **El nombre y la firma del director** son de maqueta: `DIRECTOR_NOMBRE` es un
+  nombre inventado y la rúbrica es un trazo genérico dibujado con curvas, no la
+  firma de ninguna persona.
+- La tarjeta queda en **8,6 x 6,08 cm**, algo más alta que una ID-1 real
+  (85,6 x 54 mm), porque se respetó la proporción de la foto de referencia para
+  que la maquetación no saliera estirada. Para volver a la proporción real basta
+  poner `PROPORCION_TARJETA = 85.6 / 54`.
+- Las huellas se dibujan ahora con trazo **oscuro y más grueso**: con el gris
+  claro anterior, impresas a ~1,5 cm de alto, quedaban casi en blanco.
+
+**Pruebas** (suite de 31 → **42 casos**). En `tests/test_pdf.py`:
+`TestFormatoDeDatosDelCarnet` cubre el agrupado en miles, la nacionalidad según
+prefijo y la estabilidad del número de oficina; `TestHuellaEstampadaEnElPDF`
+comprueba que la huella elegida se **incrusta de verdad** (una huella plana y una
+ruidosa comprimen muy distinto, así que se compara el peso del PDF: comparar los
+bytes enteros no serviría, porque ReportLab nombra los XObject con un hash de la
+ruta y dos archivos distintos darían PDFs distintos aunque no se dibujara
+ninguno) y que una ruta inexistente cae en la huella principal sin romper nada.
+En `tests/test_routes.py` se añadió que `?dedo=N` se guarde en la sesión, que un
+valor inválido se ignore y que el generador reciba la ruta del dedo elegido.
+
+Verificación extra hecha a mano: se recorrió el trámite completo eligiendo el
+dedo 7, se descargó el PDF, se rasterizó y se comparó el recorte de la huella
+contra las diez candidatas. Correlación **0,857 con el dedo 7** y ≤0,15 con
+todas las demás.
+
+---
+
+<a name="previa"></a>
+## 12. La vista previa de /exito, calcada del PDF
+
+**Problema.** La "Preview de cédula simplificada" de `exito.html` era una maqueta
+HTML aparte, sin relación con el PDF: encabezado en degradado, sin huella ni
+firma, sin número de oficina ni director, la cédula sin agrupar en miles, el
+estado civil reducido a su inicial y sin fechas de expedición/vencimiento ni
+nacionalidad. El ciudadano veía una cosa y descargaba otra.
+
+**Enfoque.** No se rehízo la maqueta a mano: eso solo habría movido el problema a
+"mantener dos diseños sincronizados". La vista previa pasó a **derivarse de la
+misma maquetación que el PDF**:
+
+- `_especificacion_anverso()` es ahora la **única** definición de los textos del
+  anverso (qué dice cada uno, dónde va, con qué cuerpo, cuánto ocupa y cómo se
+  alinea). La recorre el PDF para dibujar y la recorre la vista previa para armar
+  el SVG. `_dibujar_anverso()` quedó bastante más corto al pasar a recorrerla.
+- `datos_anverso()` centraliza los textos formateados (cédula agrupada en miles,
+  número de oficina, fechas, nacionalidad), así que ninguna de las dos salidas
+  puede mostrar un dato distinto de la otra.
+- `TEXTOS_REVERSO`, las curvas de la rúbrica, los grosores de línea y las cajas
+  de las imágenes también se comparten.
+- `vista_previa()` devuelve ese modelo en unidades de un viewBox de
+  `VB_ANCHO x VB_ALTO`, y `exito.html` lo emite como **SVG**.
+
+**Por qué SVG y no divs.** Porque la correspondencia con el PDF es directa:
+
+| PDF (ReportLab) | Vista previa (SVG) |
+|---|---|
+| fracciones del tamaño de la tarjeta | mismo número, sobre el viewBox |
+| `charSpace` (`Tc`) del encabezado | `textLength` + `lengthAdjust="spacing"` |
+| escala horizontal (`Tz`) al condensar | `textLength` + `lengthAdjust="spacingAndGlyphs"` |
+| `preserveAspectRatio=True, anchor='c'` | `preserveAspectRatio="xMidYMid meet"` |
+| Helvetica | `Helvetica, Arial` (métricamente compatible) |
+
+El ancho natural de cada texto se mide con las métricas de Helvetica de
+ReportLab —las mismas del PDF—, así que se condensa exactamente en los mismos
+casos. Y como el SVG trae viewBox, escala solo: basta darle el ancho por CSS.
+
+**El detalle que sí estaba mal.** SVG **colapsa los espacios múltiples**. El
+número va separado de su letra por varios espacios (`V   12.345.678`), y en la
+vista previa el hueco salía angosto. Se corrigió con `xml:space="preserve"` en
+cada `<text>` (y recortando el espaciado de Jinja alrededor del contenido). Hay
+una prueba que lo fija, porque es un fallo silencioso: no rompe nada, solo deja
+de parecerse.
+
+**Verificación.** Se recorrió el trámite, se capturó `/exito` en un navegador de
+verdad y se comparó contra el PDF descargado en la misma corrida, rasterizado y
+reescalado al mismo tamaño:
+
+- Posición de cada elemento (número, oficina, apellidos, nombres, etiquetas,
+  las cuatro casillas, nacionalidad, huella): coinciden dentro del **0,2 % – 0,9 %**
+  del lado de la tarjeta.
+- La huella: **1 píxel de diferencia sobre 1000** (previa x 18..196 y 438..658;
+  PDF x 18..197 y 438..659).
+- La imagen de diferencia solo muestra bordes, es decir, antialiasing del
+  rasterizador; no hay ningún elemento desplazado.
+
+**Pruebas** (suite de 42 → **49 casos**). `TestVistaPreviaEspejoDelPDF` fija la
+correspondencia: un texto de la previa por cada campo del anverso, con la misma
+posición y el mismo cuerpo; las cajas de firma/huella/foto iguales a las que
+estampa el PDF; el reverso con sus textos y su QR; la separación del número; y
+que se condense solo lo que no cabe. En `tests/test_routes.py`, que `/exito`
+dibuje las dos caras, con la huella del dedo elegido y con `xml:space`.

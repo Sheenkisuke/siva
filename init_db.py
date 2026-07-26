@@ -75,11 +75,13 @@ def _dibujar_huella(ruta, aleatorio):
     separacion = aleatorio.randint(7, 11)
     anillos = aleatorio.randint(9, 13)
 
+    # Trazo oscuro y denso: en el PDF la huella se imprime a ~1,5 cm de alto y con
+    # el gris claro original quedaba casi en blanco frente a una huella real.
     for i in range(anillos):
         rx = radio_x + i * separacion
         ry = radio_y + i * separacion
         draw.ellipse((nucleo_x - rx, nucleo_y - ry, nucleo_x + rx, nucleo_y + ry),
-                     outline="darkgray", width=2)
+                     outline=(45, 45, 45), width=3)
 
     # Inclinación: cada dedo apoya la yema con un ángulo distinto.
     img = img.rotate(aleatorio.randint(-28, 28), fillcolor='white')
