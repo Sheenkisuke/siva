@@ -143,6 +143,77 @@ class TestFlujoRenovacion(unittest.TestCase):
         self.assertIn('/subir-foto', destinos[1])
         self.assertIn('/dashboard', destinos[2])  # bloqueado al 3er intento
 
+    # -- huella elegida en la interfaz -> huella estampada en el PDF ------
+    def test_subir_foto_guarda_el_dedo_elegido_en_la_sesion(self):
+        self._login()
+        self.client.get('/subir-foto?dedo=7')
+        with self.client.session_transaction() as sesion:
+            self.assertEqual(sesion['dedo_huella'], 7)
+
+    def test_dedo_invalido_se_ignora(self):
+        """Un `?dedo=` fuera de rango o no numérico no debe guardarse."""
+        self._login()
+        for valor in ('0', '11', '-3', 'abc', ''):
+            self.client.get(f'/subir-foto?dedo={valor}')
+            with self.client.session_transaction() as sesion:
+                self.assertNotIn('dedo_huella', sesion, f"aceptó dedo={valor!r}")
+
+    def test_el_generador_recibe_la_huella_del_dedo_elegido(self):
+        from app.utils import pdf_generator
+        capturado = {}
+        original = pdf_generator.generar_pdf
+
+        def espia(usuario, ruta_foto, ruta_huella=None):
+            capturado['ruta_huella'] = ruta_huella
+            return original(usuario, ruta_foto, ruta_huella=ruta_huella)
+
+        pdf_generator.generar_pdf = espia
+        try:
+            self._login()
+            self.client.get('/subir-foto?dedo=7')
+            self._subir('mi_foto.png')
+        finally:
+            pdf_generator.generar_pdf = original
+
+        self.assertIn('ruta_huella', capturado, 'no se llegó a generar el PDF')
+        self.assertTrue(capturado['ruta_huella'].endswith(os.path.join('huellas', 'V-12345678_7.png')),
+                        f"ruta inesperada: {capturado['ruta_huella']}")
+
+    def test_exito_muestra_la_vista_previa_de_las_dos_caras(self):
+        self._login()
+        self.client.get('/subir-foto?dedo=7')
+        self._subir('mi_foto.png')
+        html = self.client.get('/exito').get_data(as_text=True)
+        self.assertEqual(html.count('<svg class="cedula-cara"'), 2, 'faltan anverso o reverso')
+        # La huella dibujada es la del dedo elegido, igual que en el PDF
+        self.assertIn('huellas/V-12345678_7.png', html)
+        self.assertIn('Índice derecho', html)
+        # Los datos van con el mismo formato que imprime el PDF
+        self.assertIn('RODRÍGUEZ', html)
+        self.assertIn('V   12.345.678', html)
+        # Sin xml:space los espacios del número se colapsan y deja de coincidir
+        self.assertIn('xml:space="preserve"', html)
+        self.assertIn('data:image/png;base64,', html)  # QR del reverso
+
+    def test_sin_eleccion_el_generador_usa_la_huella_principal(self):
+        """Si el ciudadano no eligió dedo, se mantiene el comportamiento previo."""
+        from app.utils import pdf_generator
+        capturado = {}
+        original = pdf_generator.generar_pdf
+
+        def espia(usuario, ruta_foto, ruta_huella=None):
+            capturado['ruta_huella'] = ruta_huella
+            return original(usuario, ruta_foto, ruta_huella=ruta_huella)
+
+        pdf_generator.generar_pdf = espia
+        try:
+            self._login()
+            self._subir('mi_foto.png')
+        finally:
+            pdf_generator.generar_pdf = original
+
+        self.assertIsNone(capturado.get('ruta_huella'))
+
 
 class TestSelectorHuellas(unittest.TestCase):
     """

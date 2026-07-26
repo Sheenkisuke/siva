@@ -41,6 +41,33 @@ DEDOS = [
     {'numero': 10, 'nombre': 'Meñique derecho',   'x': 94.422, 'y': 44.507},
 ]
 
+DEDOS_POR_NUMERO = {dedo['numero']: dedo for dedo in DEDOS}
+
+
+def ruta_huella_de_dedo(cedula, numero):
+    """Ruta relativa (dentro de static/) de la huella de un dedo concreto."""
+    return f"huellas/{cedula}_{numero}.png"
+
+
+def _guardar_dedo_elegido(valor):
+    """
+    Guarda en la sesión el dedo elegido en el selector de /renovacion, que llega
+    como `?dedo=N` al continuar el trámite. Se valida contra DEDOS: un valor
+    ausente o inválido se ignora y el PDF cae en la huella principal del
+    ciudadano, que es el comportamiento de siempre.
+    """
+    if valor is None:
+        return
+    try:
+        numero = int(valor)
+    except (TypeError, ValueError):
+        logging.warning(f"Dedo de huella inválido recibido: {valor!r}")
+        return
+    if numero not in DEDOS_POR_NUMERO:
+        logging.warning(f"Dedo de huella fuera de rango: {numero}")
+        return
+    session['dedo_huella'] = numero
+
 @main.route('/')
 def inicio():
     """Redirige a la página de login o dashboard según sesión."""
@@ -101,12 +128,19 @@ def dashboard():
 def renovacion():
     """Muestra los datos personales del usuario y advertencias del SAIME."""
     session['intentos_foto'] = 0
-    return render_template('renovacion.html', usuario=current_user, dedos=DEDOS)
+    dedo_elegido = session.get('dedo_huella')
+    return render_template('renovacion.html', usuario=current_user, dedos=DEDOS,
+                           dedo_elegido=dedo_elegido,
+                           nombre_dedo_elegido=DEDOS_POR_NUMERO.get(dedo_elegido, {}).get('nombre'))
 
 @main.route('/subir-foto')
 @login_required
 def subir_foto():
     """Página para subir la nueva foto."""
+    # El dedo elegido en el selector de /renovacion viaja en el enlace de
+    # "Verificar y Continuar" y se guarda aquí para usarlo al estampar el PDF.
+    _guardar_dedo_elegido(request.args.get('dedo'))
+
     if session.get('intentos_foto', 0) >= current_app.config['MAX_INTENTOS_FOTO']:
         flash('Ha superado el límite de intentos. Por favor diríjase a una oficina del SAIME.', 'danger')
         return redirect(url_for('main.dashboard'))
@@ -185,8 +219,16 @@ def verificar_foto():
             flash(f'Error de identidad: La foto no coincide con nuestros registros ({similitud_porcentaje}% de coincidencia, se requiere {umbral * 100}%).', 'danger')
             return redirect(url_for('main.subir_foto'))
             
-        # Generar PDF
-        ruta_pdf = pdf_generator.generar_pdf(current_user, ruta_guardado)
+        # Generar PDF con la huella del dedo que el ciudadano eligió en
+        # /renovacion. Si no eligió ninguno, generar_pdf usa la huella principal.
+        ruta_huella = None
+        dedo = session.get('dedo_huella')
+        if dedo in DEDOS_POR_NUMERO:
+            ruta_huella = os.path.join(current_app.static_folder,
+                                       ruta_huella_de_dedo(current_user.cedula, dedo))
+
+        ruta_pdf = pdf_generator.generar_pdf(current_user, ruta_guardado,
+                                             ruta_huella=ruta_huella)
         session['pdf_generado'] = ruta_pdf
         session['similitud'] = similitud_porcentaje
         
@@ -208,15 +250,26 @@ def exito():
     
     # Se mantiene numérico para ser consistente con el valor guardado en verificar_foto
     similitud = session.get('similitud', 0.0)
-    
+
     # Obtener la ruta de la nueva foto desde la sesión
     # Si no existe, usar la foto anterior del usuario
     nueva_foto = session.get('nueva_foto', current_user.foto_ruta)
-    
-    return render_template('exito.html', 
-                         similitud=similitud, 
+
+    # Vista previa: se arma con la MISMA maquetación que el PDF descargable
+    # (ver pdf_generator.vista_previa) y con las mismas imágenes, incluida la
+    # huella del dedo elegido.
+    from app.utils import pdf_generator
+    dedo = session.get('dedo_huella')
+    huella_ruta = (ruta_huella_de_dedo(current_user.cedula, dedo)
+                   if dedo in DEDOS_POR_NUMERO else current_user.huella_ruta)
+
+    return render_template('exito.html',
+                         similitud=similitud,
                          nueva_foto=nueva_foto,
-                         usuario=current_user)
+                         usuario=current_user,
+                         cedula=pdf_generator.vista_previa(current_user),
+                         huella_ruta=huella_ruta,
+                         nombre_dedo=DEDOS_POR_NUMERO.get(dedo, {}).get('nombre'))
 
 @main.route('/descargar-pdf')
 @login_required
