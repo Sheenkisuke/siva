@@ -28,6 +28,14 @@ class Config:
     
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'static/uploads'
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # Límite de 5MB
-    FACIAL_THRESHOLD = 0.85
+    # Umbral de similitud facial para aceptar (0.0-1.0). Configurable por entorno.
+    FACIAL_THRESHOLD = float(os.environ.get('FACIAL_THRESHOLD', 0.85))
+    # Tolerancia de distancia de face_recognition en el límite de coincidencia
+    # (más bajo = más estricto). Se ancla al umbral en _distancia_a_similitud.
+    FACIAL_TOLERANCE = float(os.environ.get('FACIAL_TOLERANCE', 0.6))
+    # Porcentaje mínimo de píxeles claros que debe tener el fondo (0-100).
+    # Configurable por variable de entorno FONDO_THRESHOLD. Para probar el
+    # reconocimiento facial con fotos de fondo no blanco, bájelo (p. ej. 0).
+    FONDO_THRESHOLD = float(os.environ.get('FONDO_THRESHOLD', 70.0))
     MAX_INTENTOS_FOTO = 3
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}

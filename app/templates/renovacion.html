@@ -51,10 +51,39 @@
                     <img src="{{ url_for('static', filename=current_user.firma_ruta) if current_user.firma_ruta else 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgNTAiPjx0ZXh0IHk9IjMwIiB4PSIxMCIgZmlsbD0iI2NjYyI+U2luIGZpcm1hPC90ZXh0Pjwvc3ZnPg==' }}" alt="Firma" class="doc-img" style="max-height: 80px;">
                 </div>
             </div>
-            <div class="doc-frame">
+            <div class="doc-frame" style="flex-basis: 100%;">
                 <h5>Huella Digital</h5>
-                <div class="doc-img-wrapper" style="margin-top: 10px;">
-                    <img src="{{ url_for('static', filename=current_user.huella_ruta) if current_user.huella_ruta else 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MCA1MCI+PHRleHQgeT0iMzAiIHg9IjUiIGZpbGw9IiNjY2MiPlNpbiBodWVsbGE8L3RleHQ+PC9zdmc+' }}" alt="Huella" class="doc-img" style="max-height: 80px;">
+
+                <div id="selector-huellas" class="selector-huellas" style="margin-top: 10px;">
+
+                    {# Vista 1: las dos manos con los 10 dedos seleccionables #}
+                    <div class="huellas-manos">
+                        <img src="{{ url_for('static', filename='img/manos.png') }}"
+                             alt="Manos con los diez dedos seleccionables" class="doc-img">
+                        {% for dedo in dedos %}
+                        <button type="button" class="huella-punto{{ ' elegido' if dedo_elegido == dedo.numero else '' }}"
+                                style="left: {{ dedo.x }}%; top: {{ dedo.y }}%;"
+                                data-numero="{{ dedo.numero }}"
+                                data-huella="{{ url_for('static', filename='huellas/' ~ current_user.cedula ~ '_' ~ dedo.numero ~ '.png') }}"
+                                data-nombre="{{ dedo.nombre }}"
+                                title="{{ dedo.nombre }}"
+                                aria-label="Ver la huella del {{ dedo.nombre|lower }}"></button>
+                        {% endfor %}
+                    </div>
+                    <p class="huellas-ayuda">
+                        <span id="huellas-ayuda-texto">{{ 'Huella que se estampará en la cédula:' if dedo_elegido else 'Seleccione un dedo para ver su huella dactilar.' }}</span>
+                        <strong id="huellas-ayuda-dedo">{{ nombre_dedo_elegido or '' }}</strong>
+                    </p>
+
+                    {# Vista 2: la huella del dedo seleccionado #}
+                    <div class="huellas-detalle">
+                        <div class="doc-img-wrapper">
+                            <img id="huella-detalle-img" src="" alt="" class="doc-img huellas-detalle-img">
+                        </div>
+                        <p id="huella-detalle-nombre" class="huellas-detalle-nombre"></p>
+                        <p class="huellas-detalle-nota">Esta huella se estampará en su cédula.</p>
+                        <button type="button" id="huella-volver" class="btn btn-secondary">&lsaquo; Volver</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -70,6 +99,10 @@
 
 <div class="actions">
     <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Cancelar</a>
-    <a href="{{ url_for('main.subir_foto') }}" class="btn btn-primary">Verificar y Continuar</a>
+    {# El dedo elegido viaja en el enlace: subir_foto lo guarda en la sesión #}
+    <a id="continuar-tramite"
+       href="{{ url_for('main.subir_foto', dedo=dedo_elegido) if dedo_elegido else url_for('main.subir_foto') }}"
+       data-url-base="{{ url_for('main.subir_foto') }}"
+       class="btn btn-primary">Verificar y Continuar</a>
 </div>
 {% endblock %}

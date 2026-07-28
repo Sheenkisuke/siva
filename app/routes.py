@@ -15,6 +15,59 @@ from app.forms import validar_login, validar_archivo_foto, formatear_cedula
 # Configurar el blueprint principal
 main = Blueprint('main', __name__)
 
+# Dedos que el ciudadano puede consultar en el selector de huellas de
+# /renovacion (ver renovacion.html).
+#
+# `x` e `y` son porcentajes del ancho y del alto de static/img/manos.png y
+# marcan el CENTRO de la huella de cada dedo. Se extrajeron de la imagen de
+# referencia de puntos y se aplican con translate(-50%, -50%), de modo que el
+# centro del punto cae exactamente sobre la yema del dedo a cualquier tamaño de
+# render (son porcentajes, no píxeles: sobreviven al redimensionado del panel).
+#
+# `numero` es únicamente el índice del archivo
+# static/huellas/<cedula>_<numero>.png que genera init_db.py; el nombre del dedo
+# es lo que da el significado. Los dedos 5 y 6 son los pulgares, que en la
+# imagen se tocan en el centro.
+DEDOS = [
+    {'numero': 1,  'nombre': 'Meñique izquierdo', 'x': 6.196,  'y': 45.644},
+    {'numero': 2,  'nombre': 'Anular izquierdo',  'x': 15.988, 'y': 28.876},
+    {'numero': 3,  'nombre': 'Medio izquierdo',   'x': 26.040, 'y': 22.610},
+    {'numero': 4,  'nombre': 'Índice izquierdo',  'x': 37.009, 'y': 29.138},
+    {'numero': 5,  'nombre': 'Pulgar izquierdo',  'x': 43.478, 'y': 60.720},
+    {'numero': 6,  'nombre': 'Pulgar derecho',    'x': 56.421, 'y': 60.984},
+    {'numero': 7,  'nombre': 'Índice derecho',    'x': 62.707, 'y': 27.726},
+    {'numero': 8,  'nombre': 'Medio derecho',     'x': 74.193, 'y': 22.470},
+    {'numero': 9,  'nombre': 'Anular derecho',    'x': 84.267, 'y': 28.874},
+    {'numero': 10, 'nombre': 'Meñique derecho',   'x': 94.422, 'y': 44.507},
+]
+
+DEDOS_POR_NUMERO = {dedo['numero']: dedo for dedo in DEDOS}
+
+
+def ruta_huella_de_dedo(cedula, numero):
+    """Ruta relativa (dentro de static/) de la huella de un dedo concreto."""
+    return f"huellas/{cedula}_{numero}.png"
+
+
+def _guardar_dedo_elegido(valor):
+    """
+    Guarda en la sesión el dedo elegido en el selector de /renovacion, que llega
+    como `?dedo=N` al continuar el trámite. Se valida contra DEDOS: un valor
+    ausente o inválido se ignora y el PDF cae en la huella principal del
+    ciudadano, que es el comportamiento de siempre.
+    """
+    if valor is None:
+        return
+    try:
+        numero = int(valor)
+    except (TypeError, ValueError):
+        logging.warning(f"Dedo de huella inválido recibido: {valor!r}")
+        return
+    if numero not in DEDOS_POR_NUMERO:
+        logging.warning(f"Dedo de huella fuera de rango: {numero}")
+        return
+    session['dedo_huella'] = numero
+
 @main.route('/')
 def inicio():
     """Redirige a la página de login o dashboard según sesión."""
@@ -75,12 +128,19 @@ def dashboard():
 def renovacion():
     """Muestra los datos personales del usuario y advertencias del SAIME."""
     session['intentos_foto'] = 0
-    return render_template('renovacion.html', usuario=current_user)
+    dedo_elegido = session.get('dedo_huella')
+    return render_template('renovacion.html', usuario=current_user, dedos=DEDOS,
+                           dedo_elegido=dedo_elegido,
+                           nombre_dedo_elegido=DEDOS_POR_NUMERO.get(dedo_elegido, {}).get('nombre'))
 
 @main.route('/subir-foto')
 @login_required
 def subir_foto():
     """Página para subir la nueva foto."""
+    # El dedo elegido en el selector de /renovacion viaja en el enlace de
+    # "Verificar y Continuar" y se guarda aquí para usarlo al estampar el PDF.
+    _guardar_dedo_elegido(request.args.get('dedo'))
+
     if session.get('intentos_foto', 0) >= current_app.config['MAX_INTENTOS_FOTO']:
         flash('Ha superado el límite de intentos. Por favor diríjase a una oficina del SAIME.', 'danger')
         return redirect(url_for('main.dashboard'))
@@ -111,6 +171,9 @@ def verificar_foto():
         return redirect(url_for('main.subir_foto'))
         
     try:
+        # Conservar el nombre ORIGINAL antes de renombrar (necesario para el
+        # filtro de mascotas/animales del comparador; ver comparar_rostros).
+        nombre_original = archivo.filename
         # Guardar archivo con nombre único
         nombre_archivo = secure_filename(archivo.filename)
         ext = nombre_archivo.rsplit('.', 1)[1].lower()
@@ -124,29 +187,11 @@ def verificar_foto():
         session['nueva_foto'] = f"uploads/{nombre_unico}"
         logging.info(f"Foto subida guardada en: {ruta_guardado}")
         
-        try:
-            from app.utils import photo_validator, face_comparator, pdf_generator
-        except ImportError:
-            logging.warning("Módulos de utilidad no encontrados. Utilizando validación simulada.")
-            class MockValidator:
-                @staticmethod
-                def validar_foto(ruta): 
-                    return {'valida': True, 'errores': []}
-            class MockComparator:
-                @staticmethod
-                def comparar_rostros(foto1, foto2): 
-                    return {'porcentaje_similitud': 90.5, 'coincide': True}
-            class MockPDFGen:
-                @staticmethod
-                def generar_pdf(usuario, foto): 
-                    return os.path.join(upload_folder, f"cedula_{usuario.cedula}.pdf")
-                
-            photo_validator = MockValidator()
-            face_comparator = MockComparator()
-            pdf_generator = MockPDFGen()
-        
-        # Validar foto
-        resultado_validacion = photo_validator.validar_foto(ruta_guardado)
+        from app.utils import photo_validator, face_comparator, pdf_generator
+
+        # Validar foto (el umbral de fondo claro es configurable: config.FONDO_THRESHOLD)
+        resultado_validacion = photo_validator.validar_foto(
+            ruta_guardado, umbral_fondo=current_app.config['FONDO_THRESHOLD'])
         if not resultado_validacion.get('valida', False):
             session['intentos_foto'] += 1
             if session['intentos_foto'] >= current_app.config['MAX_INTENTOS_FOTO']:
@@ -156,22 +201,34 @@ def verificar_foto():
             flash(f'Error en la foto: {msg_validar}. Intento {session["intentos_foto"]} de {current_app.config["MAX_INTENTOS_FOTO"]}', 'warning')
             return redirect(url_for('main.subir_foto'))
             
-        # Comparar rostros
+        # Comparar rostros (umbral y tolerancia configurables: FACIAL_THRESHOLD / FACIAL_TOLERANCE)
         foto_anterior = os.path.join(current_app.static_folder, current_user.foto_ruta) if current_user.foto_ruta else None
-        
-        resultado_comparacion = face_comparator.comparar_rostros(ruta_guardado, foto_anterior)
+
+        umbral = current_app.config['FACIAL_THRESHOLD']
+        resultado_comparacion = face_comparator.comparar_rostros(
+            ruta_guardado, foto_anterior,
+            umbral=umbral,
+            tolerancia=current_app.config['FACIAL_TOLERANCE'],
+            nombre_original=nombre_original)
         similitud_porcentaje = resultado_comparacion.get('porcentaje_similitud', 0)
         similitud_decimal = similitud_porcentaje / 100.0
-        
-        umbral = current_app.config['FACIAL_THRESHOLD']
+
         if similitud_decimal < umbral:
             session['intentos_foto'] += 1
             logging.warning(f"Similitud facial baja ({similitud_decimal}) para usuario {current_user.cedula}")
             flash(f'Error de identidad: La foto no coincide con nuestros registros ({similitud_porcentaje}% de coincidencia, se requiere {umbral * 100}%).', 'danger')
             return redirect(url_for('main.subir_foto'))
             
-        # Generar PDF
-        ruta_pdf = pdf_generator.generar_pdf(current_user, ruta_guardado)
+        # Generar PDF con la huella del dedo que el ciudadano eligió en
+        # /renovacion. Si no eligió ninguno, generar_pdf usa la huella principal.
+        ruta_huella = None
+        dedo = session.get('dedo_huella')
+        if dedo in DEDOS_POR_NUMERO:
+            ruta_huella = os.path.join(current_app.static_folder,
+                                       ruta_huella_de_dedo(current_user.cedula, dedo))
+
+        ruta_pdf = pdf_generator.generar_pdf(current_user, ruta_guardado,
+                                             ruta_huella=ruta_huella)
         session['pdf_generado'] = ruta_pdf
         session['similitud'] = similitud_porcentaje
         
@@ -191,16 +248,28 @@ def exito():
         flash('No se encontró ninguna cédula lista para descargar.', 'warning')
         return redirect(url_for('main.dashboard'))
     
-    similitud = session.get('similitud', '90.0')
-    
+    # Se mantiene numérico para ser consistente con el valor guardado en verificar_foto
+    similitud = session.get('similitud', 0.0)
+
     # Obtener la ruta de la nueva foto desde la sesión
     # Si no existe, usar la foto anterior del usuario
     nueva_foto = session.get('nueva_foto', current_user.foto_ruta)
-    
-    return render_template('exito.html', 
-                         similitud=similitud, 
+
+    # Vista previa: se arma con la MISMA maquetación que el PDF descargable
+    # (ver pdf_generator.vista_previa) y con las mismas imágenes, incluida la
+    # huella del dedo elegido.
+    from app.utils import pdf_generator
+    dedo = session.get('dedo_huella')
+    huella_ruta = (ruta_huella_de_dedo(current_user.cedula, dedo)
+                   if dedo in DEDOS_POR_NUMERO else current_user.huella_ruta)
+
+    return render_template('exito.html',
+                         similitud=similitud,
                          nueva_foto=nueva_foto,
-                         usuario=current_user)
+                         usuario=current_user,
+                         cedula=pdf_generator.vista_previa(current_user),
+                         huella_ruta=huella_ruta,
+                         nombre_dedo=DEDOS_POR_NUMERO.get(dedo, {}).get('nombre'))
 
 @main.route('/descargar-pdf')
 @login_required

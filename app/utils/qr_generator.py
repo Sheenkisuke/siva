@@ -4,6 +4,21 @@ import os
 from io import BytesIO
 from datetime import datetime
 
+
+def sumar_anios(fecha, anios):
+    """
+    Suma años a una fecha de forma segura.
+
+    Usar fecha.replace(year=...) directamente lanza ValueError cuando la fecha es
+    el 29 de febrero y el año destino no es bisiesto. En ese caso se ajusta al
+    28 de febrero (comportamiento estándar para vencimientos de documentos).
+    """
+    try:
+        return fecha.replace(year=fecha.year + anios)
+    except ValueError:
+        return fecha.replace(year=fecha.year + anios, month=2, day=28)
+
+
 def generar_qr(datos_usuario, ruta_salida=None):
     """
     Genera un código QR con los datos del usuario.
@@ -16,8 +31,8 @@ def generar_qr(datos_usuario, ruta_salida=None):
         str or BytesIO: path to QR image or BytesIO object
     """
     hoy = datetime.now()
-    vencimiento = hoy.replace(year=hoy.year + 10)
-    
+    vencimiento = sumar_anios(hoy, 10)
+
     contenido = {
         "sistema": "SIVA",
         "cedula": datos_usuario.get('cedula', ''),

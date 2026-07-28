@@ -12,40 +12,103 @@
         Validación Biométrica AI: {{ similitud | default('98.5') }}% de coincidencia
     </div>
 
-    <!-- Preview de cédula simplificada -->
-    <div style="margin: 30px auto; max-width: 400px; background: #fff; color: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: left; position: relative;">
-        <!-- Header bandera -->
-        <div style="height: 12px; background: linear-gradient(to right, #FCD116 33%, #003DA5 33% 66%, #CE1126 66%);"></div>
-        <div style="padding: 10px; background: #f0f0f0; text-align: center; border-bottom: 1px solid #ddd; font-size: 0.7rem; font-weight: bold;">
-            REPÚBLICA BOLIVARIANA DE VENEZUELA<br>MINISTERIO DEL PODER POPULAR PARA RELACIONES INTERIORES, JUSTICIA Y PAZ<br>SAIME
-        </div>
-        
-        <div style="padding: 20px; display: flex; gap: 20px;">
-            <div style="flex: 0 0 100px;">
-                <img src="{{ url_for('static', filename=nueva_foto or current_user.foto_ruta) if (nueva_foto or current_user.foto_ruta) else url_for('static', filename='img/default_avatar.png') }}" alt="Foto" style="width: 100%; height: 130px; object-fit: cover; border: 1px solid #ccc;">
-            </div>
-            <div style="flex: 1; font-family: Arial, sans-serif;">
-                <div style="font-size: 1.2rem; font-weight: 900; margin-bottom: 10px;">{{ current_user.cedula if current_user else 'V-12345678' }}</div>
-                
-                <div style="font-size: 0.7rem; color: #555; text-transform: uppercase;">Apellidos</div>
-                <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 5px;">{{ current_user.apellidos if current_user else 'APELLIDOS' }}</div>
-                
-                <div style="font-size: 0.7rem; color: #555; text-transform: uppercase;">Nombres</div>
-                <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 10px;">{{ current_user.nombres if current_user else 'NOMBRES' }}</div>
-                
-                <div style="display: flex; gap: 15px;">
-                    <div>
-                        <div style="font-size: 0.6rem; color: #555;">FECHA NAC.</div>
-                        <div style="font-size: 0.8rem; font-weight: bold;">{{ current_user.fecha_nacimiento if current_user else '01-01-1990' }}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.6rem; color: #555;">ESTADO CIVIL</div>
-                        <div style="font-size: 0.8rem; font-weight: bold;">{{ current_user.estado_civil[0] if current_user and current_user.estado_civil else 'S' }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    {#
+      Vista previa de la cédula. NO es una maqueta aparte: se dibuja con el mismo
+      modelo que genera el PDF (pdf_generator.vista_previa), en unidades de su
+      viewBox, así que lo que se ve aquí es lo que sale impreso. Para mover algo,
+      se cambian las fracciones de pdf_generator y las dos salidas se mueven.
+    #}
+    {% macro cara_svg(etiqueta) %}
+    <svg class="cedula-cara" viewBox="0 0 {{ cedula.ancho }} {{ cedula.alto }}"
+         role="img" aria-label="{{ etiqueta }} de la cédula" xmlns="http://www.w3.org/2000/svg">
+        {{ caller() }}
+    </svg>
+    {% endmacro %}
+
+    {#
+      xml:space="preserve" es imprescindible: SVG colapsa los espacios múltiples y
+      el número de cédula se separa de su letra con varios ("V   12.345.678"),
+      igual que en el PDF. Sin esto el hueco se encoge y no coincide con el
+      documento. El contenido va pegado a las etiquetas por el mismo motivo.
+    #}
+    {% macro textos_svg(textos) %}
+        {% for t in textos %}
+        <text xml:space="preserve" x="{{ t.x }}" y="{{ t.y }}" font-size="{{ t.cuerpo }}"
+              fill="{{ t.color }}" text-anchor="{{ t.anclaje }}"
+              {%- if t.negrita %} font-weight="bold"{% endif %}
+              {%- if t.largo %} textLength="{{ t.largo }}" lengthAdjust="{{ t.ajuste }}"{% endif %}>{{- t.texto -}}</text>
+        {% endfor %}
+    {% endmacro %}
+
+    <div class="cedula-previa">
+        <figure class="cedula-figura">
+            {% call cara_svg('Anverso') %}
+                {% set a = cedula.anverso %}
+                <defs>
+                    {# Recorta las bandas para que sus extremos queden curvos, como el roundRect del PDF #}
+                    <clipPath id="recorte-encabezado">
+                        <rect x="{{ a.encabezado.x }}" y="0" width="{{ a.encabezado.ancho }}"
+                              height="{{ a.encabezado.alto }}" rx="{{ a.encabezado.radio }}"/>
+                    </clipPath>
+                </defs>
+                <rect x="0" y="0" width="{{ cedula.ancho }}" height="{{ cedula.alto }}"
+                      fill="#ffffff" stroke="{{ cedula.borde }}" stroke-width="{{ cedula.grosor_borde }}"/>
+                <g clip-path="url(#recorte-encabezado)">
+                    {% for banda in a.encabezado.bandas %}
+                    <rect x="{{ a.encabezado.x }}" y="{{ banda.y }}" width="{{ a.encabezado.ancho }}"
+                          height="{{ banda.alto }}" fill="{{ banda.color }}"/>
+                    {% endfor %}
+                </g>
+                <rect x="{{ a.encabezado.x }}" y="0" width="{{ a.encabezado.ancho }}"
+                      height="{{ a.encabezado.alto }}" rx="{{ a.encabezado.radio }}"
+                      fill="none" stroke="{{ cedula.borde }}" stroke-width="{{ cedula.grosor_borde }}"/>
+                <path d="{{ a.rubrica.d }}" fill="none" stroke="{{ a.rubrica.color }}"
+                      stroke-width="{{ a.rubrica.grosor }}"/>
+                {# preserveAspectRatio="xMidYMid meet" equivale al preserveAspectRatio + anchor='c' del PDF #}
+                {% if current_user.firma_ruta %}
+                <image href="{{ url_for('static', filename=current_user.firma_ruta) }}"
+                       x="{{ a.imagenes.firma.x }}" y="{{ a.imagenes.firma.y }}"
+                       width="{{ a.imagenes.firma.ancho }}" height="{{ a.imagenes.firma.alto }}"
+                       preserveAspectRatio="xMidYMid meet"/>
+                {% endif %}
+                {% if huella_ruta %}
+                <image href="{{ url_for('static', filename=huella_ruta) }}"
+                       x="{{ a.imagenes.huella.x }}" y="{{ a.imagenes.huella.y }}"
+                       width="{{ a.imagenes.huella.ancho }}" height="{{ a.imagenes.huella.alto }}"
+                       preserveAspectRatio="xMidYMid meet"/>
+                {% endif %}
+                {% if nueva_foto or current_user.foto_ruta %}
+                <image href="{{ url_for('static', filename=nueva_foto or current_user.foto_ruta) }}"
+                       x="{{ a.imagenes.foto.x }}" y="{{ a.imagenes.foto.y }}"
+                       width="{{ a.imagenes.foto.ancho }}" height="{{ a.imagenes.foto.alto }}"
+                       preserveAspectRatio="xMidYMid meet"/>
+                {% endif %}
+                {{ textos_svg(a.textos) }}
+            {% endcall %}
+            <figcaption>Anverso</figcaption>
+        </figure>
+
+        <figure class="cedula-figura">
+            {% call cara_svg('Reverso') %}
+                {% set r = cedula.reverso %}
+                <rect x="0" y="0" width="{{ cedula.ancho }}" height="{{ cedula.alto }}"
+                      fill="#ffffff" stroke="{{ cedula.borde }}" stroke-width="{{ cedula.grosor_borde }}"/>
+                <rect x="0" y="0" width="{{ cedula.ancho }}" height="{{ r.barra.alto }}"
+                      fill="{{ r.barra.color }}"/>
+                {% if r.qr.src %}
+                <image href="{{ r.qr.src }}" x="{{ r.qr.x }}" y="{{ r.qr.y }}"
+                       width="{{ r.qr.lado }}" height="{{ r.qr.lado }}"/>
+                {% endif %}
+                {{ textos_svg(r.textos) }}
+            {% endcall %}
+            <figcaption>Reverso</figcaption>
+        </figure>
     </div>
+
+    <p class="cedula-nota">
+        Esta es la maqueta exacta del PDF que va a descargar.
+        {% if nombre_dedo %}Huella estampada: <strong>{{ nombre_dedo }}</strong>.{% endif %}
+    </p>
 
     <div style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
         <a href="{{ url_for('main.descargar_pdf') }}" class="btn btn-success" style="width: 100%; max-width: 300px;">
