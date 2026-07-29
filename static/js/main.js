@@ -64,6 +64,58 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Selector de Huellas Dactilares ---
+    const selectorHuellas = document.getElementById('selector-huellas');
+    if (selectorHuellas) {
+        const detalleImg = document.getElementById('huella-detalle-img');
+        const detalleNombre = document.getElementById('huella-detalle-nombre');
+        const volverBtn = document.getElementById('huella-volver');
+
+        const mostrarManos = () => {
+            selectorHuellas.classList.remove('detalle-activa');
+        };
+
+        const ayudaTexto = document.getElementById('huellas-ayuda-texto');
+        const ayudaDedo = document.getElementById('huellas-ayuda-dedo');
+        const continuar = document.getElementById('continuar-tramite');
+
+        // El dedo elegido viaja al backend en el enlace de "Verificar y
+        // Continuar": subir_foto lo guarda en la sesión y el PDF lo estampa.
+        const marcarElegido = (punto) => {
+            selectorHuellas.querySelectorAll('.huella-punto').forEach(p => {
+                p.classList.toggle('elegido', p === punto);
+            });
+            if (ayudaTexto) ayudaTexto.textContent = 'Huella que se estampará en la cédula:';
+            if (ayudaDedo) ayudaDedo.textContent = punto.dataset.nombre;
+            if (continuar) {
+                continuar.href = `${continuar.dataset.urlBase}?dedo=${punto.dataset.numero}`;
+            }
+        };
+
+        const mostrarHuella = (punto) => {
+            detalleImg.src = punto.dataset.huella;
+            detalleImg.alt = `Huella del ${punto.dataset.nombre.toLowerCase()}`;
+            detalleNombre.textContent = punto.dataset.nombre;
+            marcarElegido(punto);
+            selectorHuellas.classList.add('detalle-activa');
+            // Mover el foco al botón de volver para no perderlo en el punto oculto
+            volverBtn.focus();
+        };
+
+        selectorHuellas.querySelectorAll('.huella-punto').forEach(punto => {
+            punto.addEventListener('click', () => mostrarHuella(punto));
+        });
+
+        volverBtn.addEventListener('click', mostrarManos);
+
+        // Escape también regresa al selector de dedos
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && selectorHuellas.classList.contains('detalle-activa')) {
+                mostrarManos();
+            }
+        });
+    }
+
     // --- Photo Upload Logic ---
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('foto-upload');
